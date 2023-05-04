@@ -4,6 +4,7 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.FileSystemException;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 
@@ -18,16 +19,21 @@ import java.util.Arrays;
  * 3) На сервере есть три двумерных массива данных: целочисленных, вещественных и
  * строковых.
  */
+
+//8000 "1:1 1;2 4;2 3,2:0 2;0 3;3 0,3:0 0;0 2"
 public class TCPServer {
 
 	static int PORT;
 	static String clientRequest = "";
-	static String fileSettingsPath = "fileSettingsServer";
+	static String fileSettingsPath = "resources/fileSettingsServer";
+
+	static String reservedItems = "";
 	static BufferedWriter journalFileWriter;
 
 	public static void main(String args[]) throws Exception {
 		try {
 			PORT = getServerPortFromArgs(args);
+			reservedItems = getReservedItems(args);
 			ServerSocket serverSocket = new ServerSocket(PORT);
 			System.out.println("Сервер запущен на порту " + PORT);
 			getServerJournal(fileSettingsPath);
@@ -42,6 +48,13 @@ public class TCPServer {
 		}
 	}
 
+	private static String getReservedItems(String[] args) {
+		if (args.length < 2){
+			System.out.println("Недостаточно аргументов");
+		}
+		return args[1];
+	}
+
 	private static void getServerJournal(String fileSettingsPath) throws IOException {
 		BufferedReader reader = new BufferedReader(new FileReader(fileSettingsPath));
 		String fileLine = reader.readLine();
@@ -50,19 +63,9 @@ public class TCPServer {
 		journalFileWriter = new BufferedWriter(new FileWriter(fileLine));
 	}
 
-//	private static int getServerPortFromFileSettings(String fileSettingsPath) throws IOException {
-//
-//		BufferedReader reader = new BufferedReader(new FileReader(fileSettingsPath));
-//		String fileLine = reader.readLine();
-//		if (fileLine.isEmpty())
-//			throw new FileSystemException("Пустой файл");
-//		String[] wordsInLine = fileLine.split("=");
-//		if (wordsInLine.length != 2 || !wordsInLine[0].equals("serverPort"))
-//			throw new FileSystemException("Неверные данные в файле");
-//		return Integer.parseInt(wordsInLine[1]);
-//	}
+
 	private static int getServerPortFromArgs(String[] args) throws Exception{
-		if (args.length < 1){
+		if (args.length < 2){
 			System.out.println("Недостаточно аргументов");
 		}
 		return Integer.parseInt(args[0]);
@@ -73,10 +76,7 @@ public class TCPServer {
 		static int[][]      intArr = new int[5][5];
 		static String[][]   strArr = new String[5][5];
 		static float[][]    floatArr = new float[5][5];
-		static final int    defaultIntValue = 1000;
-		static final String defaultStrValue = "default string";
-		static final float  defaultFloatValue = 123.345f;
-		static int[][] reservedIndexes  = new int[][]{{0, 3, 4}, {1, 2},{4}};
+		static ArrayList<ArrayList<Integer>> reservedIndexes  = getReservedString(reservedItems);
 
 		public Listener(Socket clientSocket) {
 			this.socket = clientSocket;
@@ -185,6 +185,9 @@ public class TCPServer {
 
 
 		private static String editArraysElement(String[] array) {
+			Integer[] itemsInt = reservedIndexes.get(0).toArray(new Integer[reservedIndexes.get(0).size()]);
+			Integer[] itemsStr = reservedIndexes.get(1).toArray(new Integer[reservedIndexes.get(0).size()]);
+			Integer[] itemsFloat = reservedIndexes.get(2).toArray(new Integer[reservedIndexes.get(0).size()]);
 			int[] commandNumbers = new int[3];
 			for (int i = 0; i != 3; i++) {
 				if (array[i].matches("[-+]?\\d+")){
@@ -199,6 +202,14 @@ public class TCPServer {
 			}
 			if (commandNumbers[0] == 1){// интовый массив
 				if (array[3].matches("[-+]?\\d+")){
+
+
+					for (int i = 0; i < itemsInt.length - 1; i+=2){
+						if (itemsInt[i] == commandNumbers[1] && itemsInt[i+1] == commandNumbers[2])
+						{
+							return "Невозможно изменить значение. У вас нет прав на запись!";
+						}
+					}
 					intArr[commandNumbers[1]][commandNumbers[2]] = Integer.parseInt(array[3]);
 				}
 				else {
@@ -212,11 +223,23 @@ public class TCPServer {
 					stringArg.append(array[i]).append(" ");
 				}
 				stringArg.deleteCharAt(stringArg.length() - 1);
+				for (int i = 0; i < itemsStr.length - 1; i+=2){
+					if (itemsStr[i] == commandNumbers[1] && itemsStr[i+1] == commandNumbers[2])
+					{
+						return "Невозможно изменить значение. У вас нет прав на запись!";
+					}
+				}
 				strArr[commandNumbers[1]][commandNumbers[2]] = stringArg.toString();
 				return Arrays.deepToString(strArr);
 			}
 			else if (commandNumbers[0] == 3){// массив веществ чисел
 				if (array[3].matches("[-+]?\\d+\\.?\\d*")){
+					for (int i = 0; i < itemsStr.length - 1; i+=2){
+						if (itemsFloat[i] == commandNumbers[1] && itemsFloat[i+1] == commandNumbers[2])
+						{
+							return "Невозможно изменить значение. У вас нет прав на запись!";
+						}
+					}
 					floatArr[commandNumbers[1]][commandNumbers[2]] = Float.parseFloat(array[3]);
 				}
 				else {
@@ -273,5 +296,41 @@ public class TCPServer {
 					"Позволит узнать значение в этой ячейке.\n" +
 					"Чтобы изменить значение, добавьте еще один аргумент.\n");
 		}
+	}
+	//8000 "1:1 1;2 4;2 3,2:0 2;0 3;3 0,3:0 0;0 2"
+	private static ArrayList<ArrayList<Integer>> getReservedString(String stroke){
+		String[] temp = stroke.split(",");
+		ArrayList<ArrayList<Integer>> arrays = new ArrayList<>();
+		for (int i = 0; i < temp.length; i++){
+			String[] ti = temp[i].split(":");
+			int arrnum = Integer.parseInt(ti[0]);
+			arrays.add(new ArrayList<Integer>());
+			String[] tij = ti[1].split(";");
+			for (int k = 0; k < tij.length; k++){
+				String[] indexes = tij[k].split(" ");
+				int raw = Integer.parseInt(indexes[0]);
+				int column = Integer.parseInt(indexes[1]);
+				arrays.get(arrnum - 1).add(raw);
+				arrays.get(arrnum - 1).add(column);
+			}
+		}
+
+//		int[][] arr = new int[arrays.size()][];
+//		int i=0;
+//		for (ArrayList<Integer> row : arrays){
+//			arr[i++] = row.toArray(arr[i]);
+//		}
+//		for (int i = 0; i < arr.length; i++){
+//			int localSize = arrays.get(i).size();
+//			arr[i] = new int[localSize];
+//			arr[i] = arrays.get(i).toArray();
+//		}
+		/*
+		* int[][] A = new int[mat.size()][];
+int i=0;
+for (List<Integer> row : mat){
+    A[i++] = row.toArray(A[i]);
+}*/
+		return arrays;
 	}
 }

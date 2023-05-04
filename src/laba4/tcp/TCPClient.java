@@ -13,7 +13,7 @@ public class TCPClient {
 	static BufferedReader userConsoleReader;
 	static BufferedWriter journalFileWriter;
 
-	static String fileSettingsPath = "fileSettings";
+	static String fileSettingsPath = "resources/fileSettings";
 
 	public static void main(String[] args) throws Exception {
 		try {
