@@ -1,0 +1,4 @@
+localhost 8000
+journalC
+journalS
+serverPort=8000
